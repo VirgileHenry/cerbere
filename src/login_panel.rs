@@ -83,7 +83,7 @@ impl LoginInfo {
         }
     }
 
-    pub fn handle_key_event(&mut self, event: crossterm::event::KeyEvent) -> std::io::Result<()> {
+    pub fn handle_key_event(&mut self, event: crossterm::event::KeyEvent) {
         match event.code {
             crossterm::event::KeyCode::Tab => {
                 match self.selected_input {
@@ -99,26 +99,32 @@ impl LoginInfo {
                     }
                 };
             }
-            crossterm::event::KeyCode::Enter => match self.login() {
-                Ok(_) => {}
-                Err(e) => return Err(std::io::Error::other(format!("Failed to login with PAM: {e}"))),
-            },
+            crossterm::event::KeyCode::Enter => self.login(),
             _ => match self.selected_input {
                 SelectedInput::Username => self.username.handle_key_event(event),
                 SelectedInput::Password => self.password.handle_key_event(event),
             },
         }
-
-        Ok(())
     }
 
-    fn login(&mut self) -> pam::PamResult<()> {
+    fn login(&mut self) {
+        macro_rules! exit_on_err {
+            ($e:expr, $fmt:expr) => {
+                match $e {
+                    Ok(val) => val,
+                    Err(e) => {
+                        eprintln!($fmt, e);
+                        return;
+                    }
+                }
+            };
+        }
         if self.password.value.is_empty() {
             self.password.icon = ICON_QUESTION;
-            return Ok(());
+            return;
         }
 
-        let mut client = pam::Client::with_password("cerbere")?;
+        let mut client = exit_on_err!(pam::Client::with_password("cerbere"), "Failed to create PAM client: {}");
         let conv = client.conversation_mut();
         conv.set_credentials(&self.username.value, &self.password.value);
 
@@ -127,10 +133,18 @@ impl LoginInfo {
         self.password.value.clear();
 
         match client.authenticate() {
-            Ok(_) => client.open_session(),
+            Ok(_) => match client.open_session() {
+                Ok(_) => loop {},
+                Err(e) => {
+                    let user = exit_on_err!(client.get_user(), "Failed to retrieve user: {}");
+                    eprintln!("Failed to open session for user {user}: {e}",);
+                    return;
+                }
+            },
             Err(_) => {
+                let user = exit_on_err!(client.get_user(), "Failed to retrieve user: {}");
+                eprintln!("User {user} failed auth!");
                 self.password.icon = ICON_ERROR;
-                Ok(())
             }
         }
     }
