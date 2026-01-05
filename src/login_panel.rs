@@ -43,15 +43,17 @@ impl InputField {
 
 impl ratatui::widgets::Widget for &InputField {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+        use ratatui::style::Stylize;
+
         let content = if self.hidden {
             let hidden = std::iter::repeat_n('•', self.value.chars().count()).collect::<String>();
             std::borrow::Cow::Owned(hidden)
         } else {
             std::borrow::Cow::Borrowed(&self.value)
         };
-        let icon = ratatui::text::Span::raw(self.icon.to_string());
+        let icon = ratatui::text::Span::raw(self.icon.to_string()).white();
         let spacer = ratatui::text::Span::raw(" ");
-        let text = ratatui::text::Span::raw(content.as_str());
+        let text = ratatui::text::Span::raw(content.as_str()).white();
 
         let line = ratatui::text::Line::from(vec![icon, spacer, text]);
         line.render(area, buf);
@@ -152,6 +154,8 @@ impl LoginInfo {
 
 impl ratatui::widgets::Widget for &LoginInfo {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+        use ratatui::style::Stylize;
+
         let input_field_widths = self.username.required_size().max(self.password.required_size());
         let required_width = input_field_widths + 4;
         let required_height = 2;
@@ -170,9 +174,12 @@ impl ratatui::widgets::Widget for &LoginInfo {
             height: login_height,
         };
 
+        ratatui::widgets::Clear.render(login_area, buf);
+
         let block = ratatui::widgets::Block::new()
             .borders(ratatui::widgets::Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Thick);
+            .border_type(ratatui::widgets::BorderType::Thick)
+            .white();
         block.render(login_area, buf);
 
         let content_width = login_width.saturating_sub(2);
